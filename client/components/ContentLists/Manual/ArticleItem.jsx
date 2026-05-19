@@ -129,11 +129,24 @@ const ArticleItem = ({
               style="hollow"
             />
           )}
-          {item.status && item.status !== 'published' && (
+          {item.status && item.status !== 'published' && item.status !== 'corrected' && (
             <Label
-              text={item.status === 'new'
-                ? (item.publish_schedule ? "Scheduled" : "In progress")
-                : item.status}
+              text={(() => {
+                if (item.status === 'new') {
+                  return item.publish_schedule ? "Scheduled" : "In progress";
+                }
+                // Superdesk internal API states are snake_case ids; map the
+                // common ones to friendly labels and fall back to the raw
+                // value otherwise.
+                const labels = {
+                  in_progress: "In progress",
+                  scheduled: "Scheduled",
+                  draft: "Draft",
+                  killed: "Killed",
+                  recalled: "Recalled",
+                };
+                return labels[item.status] || item.status;
+              })()}
               type="warning"
               style="hollow"
             />

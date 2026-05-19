@@ -2,46 +2,34 @@ import React from "react";
 import PropTypes from "prop-types";
 
 import ListCard from "./ListCard";
-import Dropdown from "../UI/Dropdown";
 import SearchBar from "../UI/SearchBar";
-import { CheckButtonGroup, RadioButtonGroup } from "superdesk-ui-framework/react";
+import { Button } from "superdesk-ui-framework/react";
 
 class Listing extends React.Component {
   constructor(props) {
     super(props);
 
     this.state = {
-      filter: "all",
       search: "",
     };
   }
 
-  setFilter = (kind) => this.setState({ filter: kind });
-
-  addList = (type) => {
-    if (this.state.filter !== "all" && type !== this.state.filter) {
-      this.setState({ filter: "all" });
-    }
-    this.props.addList(type);
+  addList = () => {
+    this.props.addList("manual");
   };
 
   render() {
     let lists = [...this.props.lists];
-
-    if (this.state.filter !== "all")
-      lists = lists.filter((list) => list.type === this.state.filter);
 
     if (this.state.search)
       lists = lists.filter((list) =>
         list.name.toLowerCase().includes(this.state.search)
       );
 
-    let addButtonDisabled = false;
-    let newListIndex = lists.findIndex(
+    const newListIndex = lists.findIndex(
       (list) => typeof list.id === "undefined"
     );
-
-    if (newListIndex > -1) addButtonDisabled = true;
+    const addButtonDisabled = newListIndex > -1;
 
     return (
       <div className="sd-column-box__main-column relative sd-display-flex-column">
@@ -51,53 +39,15 @@ class Listing extends React.Component {
             onChange={(value) => this.setState({ search: value.toLowerCase() })}
             debounceTime={1}
           />
-          <div style={{ marginLeft: "1rem" }}>
-            <CheckButtonGroup>
-              <RadioButtonGroup
-                value={this.state.filter}
-                options={[
-                  { value: "all", label: "All" },
-                  { value: "automatic", label: "Automatic" },
-                  { value: "manual", label: "Manual" },
-                ]}
-                onChange={(value) => this.setFilter(value)}
-              />
-            </CheckButtonGroup>
-          </div>
 
           <div className="subnav__stretch-bar" />
-          <Dropdown
-            button={
-              <button
-                className="navbtn dropdown sd-create-btn dropdown-toggle"
-                sd-tooltip="Create new list"
-              >
-                <i className="icon-plus-large" />
-                <span className="circle" />
-              </button>
-            }
-          >
-            <li>
-              <div className="dropdown__menu-label">Create new list</div>
-            </li>
-            <li className="dropdown__menu-divider" />
-            <li>
-              <button
-                disabled={addButtonDisabled}
-                onClick={() => this.addList("automatic")}
-              >
-                Automatic List
-              </button>
-            </li>
-            <li>
-              <button
-                disabled={addButtonDisabled}
-                onClick={() => this.addList("manual")}
-              >
-                Manual List
-              </button>
-            </li>
-          </Dropdown>
+          <Button
+            text="New manual list"
+            type="primary"
+            icon="plus-sign"
+            onClick={this.addList}
+            disabled={addButtonDisabled}
+          />
         </div>
         <div className="sd-display-flex-column">
           <div className="sd-grid-list sd-grid-list--large">

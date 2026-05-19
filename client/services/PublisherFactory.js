@@ -258,106 +258,231 @@ export function PublisherFactory(pubapi) {
     }
 
     /**
+     * @description Maps a content list record from the Superdesk internal
+     * API to the shape the Publisher UI expects.
+     */
+    _mapSdContentList(sdList) {
+      if (!sdList) return sdList;
+      return {
+        ...sdList,
+        id: sdList._id,
+        _etag: sdList._etag,
+        updated_at: sdList._updated,
+        created_at: sdList._created,
+      };
+    }
+
+    /**
+     * @description Maps a content list item from the Superdesk internal API
+     * to the shape ArticleItem / Manual.jsx expect (with a `content`
+     * sub-object representing the related article).
+     */
+    _mapSdContentListItem(sdItem) {
+      if (!sdItem) return sdItem;
+      const articleContent = sdItem.article_content || {};
+      const thumb = articleContent.thumbnail;
+
+      let featureMedia = null;
+      if (thumb && thumb.href) {
+        featureMedia = {
+          renditions: [
+            { name: "thumbnail", href: thumb.href },
+            { name: "original", href: thumb.href },
+          ],
+        };
+      }
+
+      return {
+        id: sdItem._id,
+        _etag: sdItem._etag,
+        list_id: sdItem.list_id,
+        enabled: sdItem.enabled,
+        sticky: !!sdItem.sticky,
+        sticky_position: sdItem.position,
+        position: sdItem.position,
+        content: {
+          id: sdItem.content,
+          title: articleContent.title,
+          status: articleContent.state,
+          feature_media: featureMedia,
+        },
+      };
+    }
+
+    /**
      * @ngdoc method
      * @name publisher#getList
-     * @param {Number} id
+     * @param {String} id
      * @returns {Promise}
-     * @description Get content list
+     * @description Get content list from Superdesk internal API
     */
     getList(id) {
-      return pubapi.get("content/lists", id);
+      return pubapi
+        .superdeskApiRequest({
+          method: "GET",
+          path: "/content_lists/" + id,
+        })
+        .then((res) => this._mapSdContentList(res));
     }
 
     /**
      * @ngdoc method
      * @name publisher#manageList
      * @param {Object} list - list which is edited
-     * @param {String} id - id of list which is edited
+     * @param {String} id - id of list which is edited (omit to create)
      * @returns {Promise}
-     * @description Create or update a content list
+     * @description Create or update a content list via Superdesk internal API.
+     * For updates, list._etag is required and is sent as the If-Match header.
      */
     manageList(list, id) {
-      return pubapi.save("content/lists", list, id);
+      const isUpdate = !!id;
+      const body = { ...list };
+
+      // Strip fields that the Superdesk API rejects or that we control
+      // separately (etag is sent as If-Match instead of in the body).
+      delete body._id;
+      delete body._etag;
+      delete body._created;
+      delete body._updated;
+      delete body._links;
+      delete body._type;
+      delete body.id;
+      delete body.updated_at;
+      delete body.created_at;
+      delete body.content_list_items_updated_at;
+
+      const requestConfig = {
+        method: isUpdate ? "PATCH" : "POST",
+        path: isUpdate ? "/content_lists/" + id : "/content_lists",
+        data: body,
+      };
+
+      if (isUpdate && list._etag) {
+        requestConfig.headers = { "If-Match": list._etag };
+      }
+
+      return pubapi
+        .superdeskApiRequest(requestConfig)
+        .then((res) => this._mapSdContentList(res));
     }
 
     /**
      * @ngdoc method
      * @name publisher#removeList
      * @param {String} id - id of list which is deleted
+     * @param {String} etag - current _etag of the list (required by SD API)
      * @returns {Promise}
-     * @description Remove a content list
+     * @description Remove a content list via Superdesk internal API
      */
-    removeList(id) {
-      return pubapi.remove("content/lists", id);
+    removeList(id, etag) {
+      return pubapi.superdeskApiRequest({
+        method: "DELETE",
+        path: "/content_lists/" + id,
+        headers: etag ? { "If-Match": etag } : undefined,
+      });
     }
 
     /**
      * @ngdoc method
      * @name publisher#queryLists
-     * @param {Object} params - additional params to query
+     * @param {Object} params - additional query params (e.g. max_results, page)
      * @returns {Promise}
-     * @description List all content lists
+     * @description List all content lists from Superdesk internal API
      */
     queryLists(params) {
-      let newParams = { ...params };
-
-      if (!newParams.limit) {
-        newParams.limit = 99999;
-      }
-      return pubapi.query("content/lists", newParams);
-    }
-
-    /**
-     * @ngdoc method
-     * @name publisher#queryListArticles
-     * @param {String} id - id of content list
-     * @returns {Promise}
-     * @description List all articles for selected content list
-     */
-    queryListArticles(id) {
-      return pubapi.query("content/lists/" + id + "/items", { limit: 9999 });
+      const newParams = { max_results: 200, ...(params || {}) };
+      return pubapi
+        .superdeskApiRequest({
+          method: "GET",
+          path: "/content_lists",
+          params: newParams,
+        })
+        .then((response) =>
+          (response._items || []).map((l) => this._mapSdContentList(l))
+        );
     }
 
     /**
      * @ngdoc method
      * @name publisher#queryListArticlesWithDetails
      * @param {String} id - id of content list
-     * @param {Object} params
+     * @param {Object} params - { page, limit, ... }
      * @returns {Promise}
-     * @description List all articles for selected content list
+     * @description List items of a content list via Superdesk internal API.
+     * The response is shaped to look like the previous Publisher API
+     * response (page / pages / _embedded._items) so the UI doesn't need
+     * to know which backend served it.
      */
     queryListArticlesWithDetails(id, params) {
-      return pubapi.queryWithDetails("content/lists/" + id + "/items", params);
+      const p = { ...(params || {}) };
+      const max_results = p.limit || 25;
+      const page = p.page || 1;
+
+      // Sort by position ascending. Mongo-style sort string.
+      const queryParams = {
+        max_results,
+        page,
+        sort: "position",
+      };
+
+      return pubapi
+        .superdeskApiRequest({
+          method: "GET",
+          path: "/content_lists/" + id + "/items",
+          params: queryParams,
+        })
+        .then((response) => {
+          const meta = response._meta || {};
+          const total = meta.total || 0;
+          const pages = max_results > 0 ? Math.ceil(total / max_results) : 1;
+          const items = (response._items || []).map((i) =>
+            this._mapSdContentListItem(i)
+          );
+
+          return {
+            page: meta.page || page,
+            pages: pages || 1,
+            total,
+            _embedded: { _items: items },
+          };
+        });
     }
 
     /**
      * @ngdoc method
-     * @name publisher#pinArticle
-     * @param {String} listId - id of content list
-     * @param {String} articleId - id of article
-     * @param {Object} article - article which is edited
+     * @name publisher#saveManualList
+     * @param {Object} list - { items: [{content_id, action, position, sticky}], updated_at }
+     * @param {String} listId
      * @returns {Promise}
-     * @description Pin article in list of articles
-     */
-    pinArticle(listId, articleId, article) {
-      return pubapi.save(
-        "content/lists/" + listId + "/items",
-        article,
-        articleId
-      );
-    }
-
-    /**
-     * @ngdoc method
-     * @name publisher#pinArticle
-     * @param {String} listId - id of content list
-     * @param {String} articleId - id of article
-     * @param {Object} article - article which is edited
-     * @returns {Promise}
-     * @description Pin article in list of articles
+     * @description Bulk-patch items in a manual content list via the
+     * Superdesk internal API. Translates the Publisher field names
+     * (content_id / updated_at) into the SD ones (contentId / updatedAt).
      */
     saveManualList(list, listId) {
-      return pubapi.patch("content/lists/" + listId + "/items", list);
+      const items = (list.items || []).map((change) => {
+        const out = {
+          action: change.action,
+          contentId: change.content_id,
+        };
+        if (change.action !== "delete") {
+          out.position = change.position;
+          if (typeof change.sticky !== "undefined") out.sticky = change.sticky;
+        }
+        return out;
+      });
+
+      const data = {
+        updatedAt: list.updated_at || null,
+        items,
+      };
+
+      return pubapi
+        .superdeskApiRequest({
+          method: "PATCH",
+          path: "/content_lists/" + listId + "/items",
+          data,
+        })
+        .then((res) => this._mapSdContentList(res));
     }
 
     /**
@@ -378,12 +503,12 @@ export function PublisherFactory(pubapi) {
      * @returns {Promise}
      * @description Search articles in Superdesk
      */
-    searchSuperdeskArticles(query) {
+    searchSuperdeskArticles(query, extraParams = {}) {
       const source = JSON.stringify(query);
       return pubapi.superdeskApiRequest({
         method: 'GET',
         path: '/search',
-        params: { source },
+        params: { source, ...extraParams },
       });
     }
 

@@ -78,10 +78,14 @@ class ContentLists extends React.Component {
   _getLists = () => {
     this.setState({ loading: true }, () => {
       return this.props.publisher.queryLists().then((lists) => {
+        // Superdesk internal API only exposes manual content lists; keep
+        // the filter defensive in case other types ever appear.
+        lists = lists.filter((l) => l.type === "manual");
+
         let selectedList = null;
 
         if (this.props.list) {
-          let list = lists.find((l) => l.id === parseInt(this.props.list));
+          let list = lists.find((l) => l.id === this.props.list);
           if (list) selectedList = list;
         }
 
@@ -92,8 +96,7 @@ class ContentLists extends React.Component {
             lists,
             loading: false,
             selectedList,
-            filtersOpen:
-              selectedList && selectedList.type === "automatic" ? true : false,
+            filtersOpen: false,
           });
       });
     });
@@ -154,11 +157,10 @@ class ContentLists extends React.Component {
     this.setState({ previewOpen: true, previewItem: item });
   closePreview = () => this.setState({ previewOpen: false, previewItem: null });
 
-  addList = (type) => {
-    let list = {
+  addList = () => {
+    const list = {
       name: "",
-      type: type,
-      cache_life_time: 0,
+      type: "manual",
     };
 
     this.setState({ lists: [list, ...this.state.lists] });
@@ -212,7 +214,7 @@ class ContentLists extends React.Component {
                 onListDelete={(id) => this.onListDelete(id)}
                 onListCreated={(list) => this.onListCreated(list)}
                 onListUpdate={(list) => this.onListUpdate(list)}
-                addList={(type) => this.addList(type)}
+                addList={() => this.addList()}
                 listEdit={(list) => this.listEdit(list)}
               />
             )}

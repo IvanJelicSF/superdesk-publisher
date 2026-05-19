@@ -319,6 +319,7 @@ export function PubAPIFactory(config, $http, $q, session, $location, Upload) {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': session.token,
+                    ...(requestConfig.headers || {}),
                 },
                 withCredentials: true,
             }).then((response) => response.data);

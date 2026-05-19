@@ -3,8 +3,7 @@ import PropTypes from "prop-types";
 import classNames from "classnames";
 import moment from "moment";
 import helpers from "../../services/helpers.js";
-import _ from "lodash";
-import { Button, Label, IconButton, Icon } from "superdesk-ui-framework/react";
+import { Button, Label, IconButton } from "superdesk-ui-framework/react";
 import Dropdown from "../UI/Dropdown";
 import Modal from "../UI/Modal";
 
@@ -18,10 +17,6 @@ class ListCard extends React.Component {
       list: { ...props.list },
       isEditing: this.props.list.name ? false : true,
       loading: false,
-      moreItemsAmount:
-        props.list.content_list_items_count - 5 > 0
-          ? props.list.content_list_items_count - 5
-          : 0,
       modalType: null,
     };
   }
@@ -30,20 +25,20 @@ class ListCard extends React.Component {
     this.setState({ modalType: null });
   };
 
-  settingsShow = () => {
-    this.setState({ modalType: "settings" });
-  };
-
   save = () => {
-    let list = this.state.list.id
-      ? helpers.getUpdatedValues(this.state.list, this.props.list)
-      : { ...this.state.list };
+    let body;
 
-    delete list.updated_at;
-    delete list.latest_items;
+    if (this.state.list.id) {
+      body = helpers.getUpdatedValues(this.state.list, this.props.list);
+      // _etag must be sent (as If-Match) on every update; getUpdatedValues
+      // omits unchanged keys.
+      body._etag = this.state.list._etag;
+    } else {
+      body = { name: this.state.list.name, type: "manual" };
+    }
 
     this.props.publisher
-      .manageList(list, this.state.list.id)
+      .manageList(body, this.state.list.id)
       .then((res) => {
         let list = { ...res };
         this.modalClose();
@@ -65,20 +60,15 @@ class ListCard extends React.Component {
 
   deleteList = () => {
     this.props.publisher
-      .removeList(this.state.list.id)
+      .removeList(this.state.list.id, this.state.list._etag)
       .then(() => this.props.onListDelete(this.state.list.id));
 
     this.modalClose();
   };
 
-  handleInputChange = (e, a) => {
-    let { name, value } = e.target;
-    let list = { ...this.state.list };
-
-    if ((name === "limit" || name === "cache_life_time") & !value.length)
-      value = 0;
-
-    list[name] = value;
+  handleInputChange = (e) => {
+    const { name, value } = e.target;
+    const list = { ...this.state.list, [name]: value };
     this.setState({ list });
   };
 
@@ -101,69 +91,6 @@ class ListCard extends React.Component {
   render() {
     let { list, modalType } = this.state;
     let modalContent = "";
-
-    if (modalType === "settings") {
-      modalContent = (
-        <React.Fragment>
-          <div className="modal__header">
-            <a className="close" onClick={this.modalClose}>
-              <i className="icon-close-small" />
-            </a>
-            <h3>Settings</h3>
-          </div>
-          <div className="modal__body">
-            <form name="settingsForm">
-              <fieldset>
-                <div className="field">
-                  <label htmlFor="listLimit">number of articles limit</label>
-                  <input
-                    type="number"
-                    className="line-input"
-                    value={this.state.list.limit}
-                    name="limit"
-                    min="0"
-                    onChange={this.handleInputChange}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="listLimit">Description</label>
-                  <input
-                    type="text"
-                    className="line-input"
-                    value={this.state.list.description}
-                    name="description"
-                    onChange={this.handleInputChange}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="listCacheLifeTime">cache lifetime</label>
-                  <input
-                    type="number"
-                    className="line-input"
-                    name="cache_life_time"
-                    value={this.state.list.cache_life_time}
-                    onChange={this.handleInputChange}
-                    min="0"
-                    required=""
-                  />
-                </div>
-              </fieldset>
-            </form>
-          </div>
-          <div className="modal__footer">
-            <Button text="Cancel" onClick={this.modalClose} />
-            <Button
-              text="Save"
-              type="primary"
-              onClick={this.save}
-              disabled={_.isEmpty(
-                helpers.getUpdatedValues(this.state.list, this.props.list)
-              )}
-            />
-          </div>
-        </React.Fragment>
-      );
-    }
 
     if (modalType === "delete") {
       modalContent = (
@@ -241,12 +168,6 @@ class ListCard extends React.Component {
                     }
                   >
                     <li>
-                      <button onClick={this.settingsShow} title="Settings">
-                        <i className="icon-settings" />
-                        Settings
-                      </button>
-                    </li>
-                    <li>
                       <button onClick={this.deleteConfirm} title="Remove list">
                         <i className="icon-trash" />
                         Remove
@@ -260,41 +181,16 @@ class ListCard extends React.Component {
           <div className="sd-card__content sd-card__content--scrollable relative">
             <ul className="sd-card__content-list">
               {this.state.loading && <div className="sd-loader" />}
-              {!this.state.loading &&
-                (!this.state.list.latest_items ||
-                  !this.state.list.latest_items.length) && (
-                  <div className="sd-card__content-list-item sd-card__content-list-item--small">
-                    <span>No articles in this list</span>
-                  </div>
-                )}
-              {!this.state.loading &&
-              this.state.list.latest_items &&
-              this.state.list.latest_items.length
-                ? this.state.list.latest_items.map((article, index) => (
-                    <li
-                      key={
-                        "listElement" +
-                        article.content.id +
-                        this.state.list.id +
-                        index
-                      }
-                      className="sd-card__content-list-item sd-card__content-list-item--small"
-                    >
-                      {article.content.title}
-                    </li>
-                  ))
-                : null}
-              {!this.state.loading &&
-              this.state.list.latest_items &&
-              this.state.list.latest_items.length &&
-              this.state.moreItemsAmount ? (
-                <li
-                  className="sd-card__content-list-item sd-card__content-list-item--small"
-                  style={{ fontStyle: "italic" }}
-                >
-                  {this.state.moreItemsAmount} more...
-                </li>
-              ) : null}
+              {!this.state.loading && (
+                <div className="sd-card__content-list-item sd-card__content-list-item--small">
+                  <span>
+                    {list.content_list_items_updated_at
+                      ? "Items last updated " +
+                        moment(list.content_list_items_updated_at).fromNow()
+                      : "No articles in this list"}
+                  </span>
+                </div>
+              )}
             </ul>
           </div>
           <div className="sd-card__footer sd-card__footer--spread">

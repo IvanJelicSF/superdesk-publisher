@@ -3,9 +3,7 @@ import PropTypes from "prop-types";
 import classNames from "classnames";
 import _ from "lodash";
 
-import SitesSideNav from "../generic/SitesSideNav";
 import Listing from "./Listing";
-import AutomaticList from "./Automatic/Automatic";
 import ManualList from "./Manual/Manual";
 import PreviewPane from "./PreviewPane";
 
@@ -17,10 +15,7 @@ class ContentLists extends React.Component {
 
     this.state = {
       loading: true,
-      sites: [],
-      selectedSite: {},
       lists: [],
-      tenantsNavOpen: true,
       selectedList: null,
       filtersOpen: false,
       previewOpen: false,
@@ -30,42 +25,21 @@ class ContentLists extends React.Component {
 
   componentDidMount() {
     this._isMounted = true;
-
-    this.props.publisher
-      .setToken()
-      .then(this.props.publisher.querySites)
-      .then((sites) => {
-        let tenantsNavOpen = sites.length > 1 ? true : false;
-        this.setState({ sites, tenantsNavOpen });
-
-        if (this.props.tenant) {
-          let site = sites.find((site) => site.code === this.props.tenant);
-          if (site) this.setTenant(site);
-        } else if (sites[0]) {
-          this.setTenant(sites[0]);
-        }
-      });
+    // Content lists are served by the Superdesk internal API which uses the
+    // existing session cookie — no Publisher auth bootstrap needed. Calling
+    // pubapi.setToken() here would 401 and trigger session.expire(), logging
+    // the user out, whenever Publisher isn't available.
+    this._getLists();
   }
 
   componentWillUnmount() {
     this._isMounted = false;
   }
 
-  setTenant = (site) => {
-    this.props.publisher.setTenant(site);
-
-    this.setState(
-      {
-        selectedSite: site,
-      },
-      this._getLists
-    );
-  };
-
   listEdit = (list) =>
     this.setState({
       selectedList: list,
-      filtersOpen: list.type === "automatic" ? true : false,
+      filtersOpen: false,
     });
 
   cancelListEdit = () =>
@@ -148,9 +122,6 @@ class ContentLists extends React.Component {
     this.setState({ lists });
   };
 
-  toggleTenantsNav = () =>
-    this.setState({ tenantsNavOpen: !this.state.tenantsNavOpen });
-
   toggleFilters = () => this.setState({ filtersOpen: !this.state.filtersOpen });
 
   openPreview = (item) =>
@@ -187,26 +158,9 @@ class ContentLists extends React.Component {
             >
               <i className="icon-arrow-left" />
             </a>
-            <h3 className="subnav__page-title">
-              Content Lists
-              {this.state.selectedSite && (
-                <span> / {this.state.selectedSite.name}</span>
-              )}
-            </h3>
+            <h3 className="subnav__page-title">Content Lists</h3>
           </div>
-          <div
-            className={classNames("sd-column-box--3", {
-              "content-nav-closed": !this.state.tenantsNavOpen,
-            })}
-          >
-            <SitesSideNav
-              sites={this.state.sites}
-              selectedSite={this.state.selectedSite}
-              setTenant={(site) => this.setTenant(site)}
-              toggle={this.toggleTenantsNav}
-              open={this.state.tenantsNavOpen}
-            />
-
+          <div className="sd-column-box--3 content-nav-closed">
             {!this.state.selectedList && (
               <Listing
                 lists={this.state.lists}
@@ -219,45 +173,25 @@ class ContentLists extends React.Component {
               />
             )}
 
-            {this.state.selectedList &&
-              this.state.selectedList.type === "automatic" && (
-                <AutomaticList
-                  list={this.state.selectedList}
-                  lists={this.state.lists}
-                  publisher={this.props.publisher}
-                  listEdit={(list) => this.listEdit(list)}
-                  onEditCancel={this.cancelListEdit}
-                  onListUpdate={(list) => this.onListUpdate(list)}
-                  toggleFilters={this.toggleFilters}
-                  openPreview={(item) => this.openPreview(item)}
-                  previewItem={this.state.previewItem}
-                  filtersOpen={this.state.filtersOpen}
-                  api={this.props.api}
-                  vocabularies={this.props.vocabularies}
-                  config={this.props.config}
-                />
-              )}
-
-            {this.state.selectedList &&
-              this.state.selectedList.type === "manual" && (
-                <ManualList
-                  list={this.state.selectedList}
-                  lists={this.state.lists}
-                  publisher={this.props.publisher}
-                  listEdit={(list) => this.listEdit(list)}
-                  onEditCancel={this.cancelListEdit}
-                  onListUpdate={(list) => this.onListUpdate(list)}
-                  toggleFilters={this.toggleFilters}
-                  openPreview={(item) => this.openPreview(item)}
-                  previewItem={this.state.previewItem}
-                  filtersOpen={this.state.filtersOpen}
-                  api={this.props.api}
-                  isLanguagesEnabled={this.props.isLanguagesEnabled}
-                  languages={this.props.languages}
-                  site={this.state.selectedSite}
-                  config={this.props.config}
-                />
-              )}
+            {this.state.selectedList && (
+              <ManualList
+                list={this.state.selectedList}
+                lists={this.state.lists}
+                publisher={this.props.publisher}
+                listEdit={(list) => this.listEdit(list)}
+                onEditCancel={this.cancelListEdit}
+                onListUpdate={(list) => this.onListUpdate(list)}
+                toggleFilters={this.toggleFilters}
+                openPreview={(item) => this.openPreview(item)}
+                previewItem={this.state.previewItem}
+                filtersOpen={this.state.filtersOpen}
+                api={this.props.api}
+                isLanguagesEnabled={this.props.isLanguagesEnabled}
+                languages={this.props.languages}
+                site={{}}
+                config={this.props.config}
+              />
+            )}
 
             <PreviewPane
               article={
@@ -266,7 +200,6 @@ class ContentLists extends React.Component {
                   : this.state.previewItem
               }
               close={this.closePreview}
-              publisher={this.props.publisher}
             />
           </div>
         </div>
@@ -276,13 +209,11 @@ class ContentLists extends React.Component {
 }
 
 ContentLists.propTypes = {
-  tenant: PropTypes.string,
   list: PropTypes.string,
   publisher: PropTypes.object.isRequired,
   api: PropTypes.func.isRequired,
   isLanguagesEnabled: PropTypes.bool.isRequired,
   languages: PropTypes.array.isRequired,
-  vocabularies: PropTypes.array.isRequired,
   config: PropTypes.object,
 };
 

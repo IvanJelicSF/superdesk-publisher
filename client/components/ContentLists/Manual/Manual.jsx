@@ -5,7 +5,6 @@ import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import _ from "lodash";
 
 import { Button } from "superdesk-ui-framework/react";
-import FilterPanel from "./FilterPanel";
 import DropdownScrollable from "../../UI/DropdownScrollable";
 import SearchBar from "../../UI/SearchBar";
 import ArticleItem from "./ArticleItem";
@@ -724,16 +723,6 @@ class Manual extends React.Component {
 
           <div className="flex-grid__item flex-grid__item--d-flex flex-grid__item--column">
             <div className="subnav subnav--lower-z-index">
-              <button
-                onClick={this.props.toggleFilters}
-                className={classNames("navbtn navbtn--left navbtn--darker", {
-                  "navbtn--active": this.props.filtersOpen,
-                })}
-                sd-tooltip="Filter"
-                flow="right"
-              >
-                <i className="icon-filter-large" />
-              </button>
               <SearchBar
                 value={
                   this.state.articlesFilters.term
@@ -827,13 +816,6 @@ class Manual extends React.Component {
                 </Droppable>
               </div>
 
-              <FilterPanel
-                filter={(filters) => this.filterArticles(filters)}
-                toggle={this.props.toggleFilters}
-                publisher={this.props.publisher}
-                api={this.props.api}
-                config={this.props.config}
-              />
             </div>
           </div>
         </DragDropContext>

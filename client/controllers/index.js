@@ -1,7 +1,6 @@
 export {
   WebPublisherDashboardController
 } from "./WebPublisherDashboardController";
-export { WebPublisherOutputController } from "./WebPublisherOutputController";
 export {
   WebPublisherSettingsController
 } from "./WebPublisherSettingsController";
@@ -11,6 +10,3 @@ export {
 export {
   WebPublisherAnalyticsController
 } from "./WebPublisherAnalyticsController";
-export {
-  WebPublisherErrorLogController
-} from "./WebPublisherErrorLogController";

@@ -1,32 +1,11 @@
 <ul>
-  <li sd-tooltip="Dashboard" flow="right">
+  <li sd-tooltip="Content Lists" flow="right">
     <a
-      href="#/publisher"
+      href="#/publisher/content_lists"
       class="sd-sidebar-menu__btn"
-      ng-class="{'sd-sidebar-menu__btn--active': superdesk.currentRoute.href === '/publisher'}"
+      ng-class="{'sd-sidebar-menu__btn--active': superdesk.currentRoute.href.indexOf('/publisher/content_lists') === 0}"
     >
       <i class="sd-sidebar-menu__main-icon big-icon--dashboard-alt"></i>
-    </a>
-  </li>
-  <li sd-tooltip="Output Control" flow="right">
-    <a
-      href="#/publisher/output-control"
-      class="sd-sidebar-menu__btn"
-      ng-class="{'sd-sidebar-menu__btn--active': superdesk.currentRoute.href === '/publisher/output-control'}"
-    >
-      <i class="sd-sidebar-menu__main-icon big-icon--web"></i>
-    </a>
-  </li>
-  <li sd-tooltip="Error Log" flow="right">
-    <a
-      href="#/publisher/error-log"
-      class="sd-sidebar-menu__btn"
-      ng-class="{'sd-sidebar-menu__btn--active': superdesk.currentRoute.href === '/publisher/error-log'}"
-    >
-      <i
-        class="sd-sidebar-menu__main-icon icon-warning-sign"
-        style="font-size: 22px; line-height: 21px; left: 0.7rem"
-      ></i>
     </a>
   </li>
 </ul>

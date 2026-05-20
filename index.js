@@ -227,7 +227,7 @@ export default angular
 
       workspaceMenuProvider.item({
         // if: 'privileges.publisher_dashboard',
-        href: "/publisher",
+        href: "/publisher/content_lists",
         label: gettext("Publisher"),
         icon: "publisher",
         shortcut: "alt+w",

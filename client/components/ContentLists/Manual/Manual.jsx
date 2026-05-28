@@ -280,6 +280,9 @@ class Manual extends React.Component {
               body_html,
               headline,
               versioncreated,
+              firstcreated,
+              _updated,
+              _created,
               publish_schedule,
               associations,
               anpa_category,
@@ -298,6 +301,8 @@ class Manual extends React.Component {
               body: body_html,
               title: headline,
               published_at: versioncreated,
+              updated_at: _updated || versioncreated,
+              created_at: _created || firstcreated || versioncreated,
               publish_schedule,
               status: docState || sourceLabel,
               category,
@@ -739,12 +744,8 @@ class Manual extends React.Component {
                 ]}
                 selectedSource={this.state.source}
                 setSource={(source) => {
-                  // SourceSelect falls back to the default option on the
-                  // 'All published articles' click and passes `null`; map
-                  // that back to the published source.
-                  const next = source || { id: 'published', name: 'Published articles', label: 'Published' };
-                  this.setState({ source: next }, () => {
-                    this.handleSourceChange(next);
+                  this.setState({ source }, () => {
+                    this.handleSourceChange(source);
                   });
                 }}
               />

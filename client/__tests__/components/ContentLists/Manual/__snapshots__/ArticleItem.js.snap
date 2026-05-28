@@ -34,16 +34,16 @@ exports[`ContentLists/Manual/ArticleItem renders correctly with extras 1`] = `
       >
         <time
           flow="right"
-          sd-tooltip="15:43"
+          sd-tooltip="created: 2017-07-25 12:00"
           title="2017-07-26T15:43:33+02:00"
         >
-          2017-07-26
+          2017-07-26 15:43
         </time>
       </span>
       <span
         class="label label--success label--hollow"
       >
-        route
+        FIXME1
       </span>
     </div>
   </div>
@@ -97,16 +97,16 @@ exports[`ContentLists/Manual/ArticleItem renders correctly without extras 1`] = 
       >
         <time
           flow="right"
-          sd-tooltip="15:43"
+          sd-tooltip="created: 2017-07-25 12:00"
           title="2017-07-26T15:43:33+02:00"
         >
-          2017-07-26
+          2017-07-26 15:43
         </time>
       </span>
       <span
         class="label label--success label--hollow"
       >
-        route
+        FIXME1
       </span>
     </div>
   </div>

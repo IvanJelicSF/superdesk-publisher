@@ -150,14 +150,6 @@ class ContentLists extends React.Component {
           })}
         >
           <div className="subnav">
-            <a
-              href="#/publisher"
-              className="navbtn navbtn--left"
-              sd-tooltip="Dashboard"
-              flow="right"
-            >
-              <i className="icon-arrow-left" />
-            </a>
             <h3 className="subnav__page-title">Content Lists</h3>
           </div>
           <div className="sd-column-box--3 content-nav-closed">

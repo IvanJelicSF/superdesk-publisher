@@ -5,6 +5,31 @@ import moment from "moment";
 import { Label } from "superdesk-ui-framework/react";
 import helpers from "../../../services/helpers.js";
 
+const isToday = (value) => moment(value).isSame(moment(), "day");
+
+// Today -> just time ("14:04"); otherwise date + time ("2024-11-20 14:04").
+const formatWhen = (value) =>
+  isToday(value)
+    ? moment(value).format("HH:mm")
+    : moment(value).format("YYYY-MM-DD HH:mm");
+
+const isPublished = (status) =>
+  status === "published" || status === "corrected";
+
+const statusLabel = (item) => {
+  if (item.status === "new") {
+    return item.publish_schedule ? "Scheduled" : "In progress";
+  }
+  const labels = {
+    in_progress: "In progress",
+    scheduled: "Scheduled",
+    draft: "Draft",
+    killed: "Killed",
+    recalled: "Recalled",
+  };
+  return labels[item.status] || item.status;
+};
+
 const ArticleItem = ({
   item,
   openPreview,
@@ -86,71 +111,28 @@ const ArticleItem = ({
         </div>
         <div className="sd-list-item__row">
           <span className="sd-overflow-ellipsis sd-list-item--element-grow">
-            {item.published_at &&
-              <time
-                title={moment(item.published_at).format()}
-                sd-tooltip={moment(item.published_at).format("HH:mm")}
-                flow="right"
-              >
-                {moment(item.published_at).format("YYYY-MM-DD")}
-              </time>
-            }
-            {item.updated_at && item.updated_at !== item.published_at ? (
+            {item.updated_at && (
               <time
                 title={moment(item.updated_at).format()}
-                sd-tooltip={moment(item.updated_at).format("HH:mm")}
+                sd-tooltip={
+                  item.created_at
+                    ? `created: ${formatWhen(item.created_at)}`
+                    : undefined
+                }
                 flow="right"
               >
-                (updated at: {moment(item.updated_at).format("YYYY-MM-DD")})
-              </time>
-            ) : null}
-            {item.publish_schedule && (
-              <time
-                title={moment(item.publish_schedule).format()}
-                sd-tooltip={moment(item.publish_schedule).format("HH:mm")}
-                flow="right"
-              >
-                {" "}(scheduled: {moment(item.publish_schedule).format("YYYY-MM-DD HH:mm")})
+                {formatWhen(item.updated_at)}
               </time>
             )}
           </span>
 
-          {item.route?.name && (
-            <Label
-              text={item.route.name}
-              type="success"
-              style="hollow"
-            />
-          )}
-          {item.category && (
-            <Label
-              text={item.category}
-              type="success"
-              style="hollow"
-            />
-          )}
-          {item.status && item.status !== 'published' && item.status !== 'corrected' && (
-            <Label
-              text={(() => {
-                if (item.status === 'new') {
-                  return item.publish_schedule ? "Scheduled" : "In progress";
-                }
-                // Superdesk internal API states are snake_case ids; map the
-                // common ones to friendly labels and fall back to the raw
-                // value otherwise.
-                const labels = {
-                  in_progress: "In progress",
-                  scheduled: "Scheduled",
-                  draft: "Draft",
-                  killed: "Killed",
-                  recalled: "Recalled",
-                };
-                return labels[item.status] || item.status;
-              })()}
-              type="warning"
-              style="hollow"
-            />
-          )}
+          {isPublished(item.status)
+            ? item.category && (
+                <Label text={item.category} type="success" style="hollow" />
+              )
+            : item.status && (
+                <Label text={statusLabel(item)} type="warning" style="hollow" />
+              )}
           {item.sticky && <Label text="pinned" type="alert" style="hollow" />}
         </div>
       </div>

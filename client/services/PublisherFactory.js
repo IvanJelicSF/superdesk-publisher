@@ -292,6 +292,12 @@ export function PublisherFactory(pubapi) {
         };
       }
 
+      const category =
+        (articleContent.anpa_category &&
+          articleContent.anpa_category[0] &&
+          articleContent.anpa_category[0].name) ||
+        null;
+
       return {
         id: sdItem._id,
         _etag: sdItem._etag,
@@ -304,6 +310,9 @@ export function PublisherFactory(pubapi) {
           id: sdItem.content,
           title: articleContent.title,
           status: articleContent.state,
+          category,
+          updated_at: articleContent._updated,
+          created_at: articleContent._created,
           feature_media: featureMedia,
         },
       };

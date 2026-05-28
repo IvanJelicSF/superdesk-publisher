@@ -5,10 +5,8 @@ import classNames from "classnames";
 import DropdownScrollable from "./DropdownScrollable";
 
 const SourceSelect = props => {
-  let selectedSource = {id: 'publisher', name: 'All published articles'};
+  const selectedSource = props.selectedSource || props.sources[0] || {};
 
-  if (props.selectedSource) selectedSource = props.selectedSource;
-  
   return (
     <React.Fragment>
       <div className="subnav__spacer subnav__spacer--no-margin" />
@@ -26,12 +24,6 @@ const SourceSelect = props => {
           }
           classes="dropdown--align-right"
         >
-          <li>
-            <button onClick={() => props.setSource(null)}>
-              All published articles
-            </button>
-          </li>
-          <li className="dropdown__menu-divider" />
           {props.sources.map(item => (
             <li key={"sourceSelect-" + item.id}>
               <button onClick={() => props.setSource(item)}>

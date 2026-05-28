@@ -18,8 +18,38 @@ class ListCard extends React.Component {
       isEditing: this.props.list.name ? false : true,
       loading: false,
       modalType: null,
+      items: [],
+      itemsTotal: 0,
     };
   }
+
+  componentDidMount() {
+    this._isMounted = true;
+    this.loadItems();
+  }
+
+  componentWillUnmount() {
+    this._isMounted = false;
+  }
+
+  loadItems = () => {
+    if (!this.state.list.id) return;
+
+    this.setState({ loading: true });
+    this.props.publisher
+      .queryListArticlesWithDetails(this.state.list.id, { limit: 5, page: 1 })
+      .then((response) => {
+        if (!this._isMounted) return;
+        this.setState({
+          items: response._embedded._items || [],
+          itemsTotal: response.total || 0,
+          loading: false,
+        });
+      })
+      .catch(() => {
+        if (this._isMounted) this.setState({ loading: false });
+      });
+  };
 
   modalClose = () => {
     this.setState({ modalType: null });
@@ -181,22 +211,39 @@ class ListCard extends React.Component {
           <div className="sd-card__content sd-card__content--scrollable relative">
             <ul className="sd-card__content-list">
               {this.state.loading && <div className="sd-loader" />}
-              {!this.state.loading && (
-                <div className="sd-card__content-list-item sd-card__content-list-item--small">
-                  <span>
-                    {list.content_list_items_updated_at
-                      ? "Items last updated " +
-                        moment(list.content_list_items_updated_at).fromNow()
-                      : "No articles in this list"}
-                  </span>
-                </div>
+              {!this.state.loading && !this.state.items.length && (
+                <li className="sd-card__content-list-item sd-card__content-list-item--small">
+                  <span>No articles in this list</span>
+                </li>
+              )}
+              {!this.state.loading &&
+                this.state.items.slice(0, 5).map((item) => (
+                  <li key={item.id} className="sd-card__content-list-item">
+                    <span>{item.content && item.content.title}</span>
+                  </li>
+                ))}
+              {!this.state.loading && this.state.itemsTotal > 5 && (
+                <li className="sd-card__content-list-item sd-card__content-list-item--small">
+                  <span>+{this.state.itemsTotal - 5} more</span>
+                </li>
               )}
             </ul>
           </div>
           <div className="sd-card__footer sd-card__footer--spread">
             <div>
-              <span className="sd-text__info">Last modified: </span>
-              <span>{moment(list.updated_at).fromNow()}</span>
+              <span className="sd-text__info">Items updated: </span>
+              {list.content_list_items_updated_at ? (
+                <span
+                  sd-tooltip={moment(list.content_list_items_updated_at).format(
+                    "HH:mm, DD.MM.YYYY"
+                  )}
+                  flow="up"
+                >
+                  {moment(list.content_list_items_updated_at).fromNow()}
+                </span>
+              ) : (
+                <span>never</span>
+              )}
             </div>
             {list.enabled && (
               <Label text="active" type="success" style="translucent" />

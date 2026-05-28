@@ -96,6 +96,36 @@ class ListCard extends React.Component {
     this.modalClose();
   };
 
+  openSettings = () => {
+    this.setState({ modalType: "settings" });
+  };
+
+  settingsCancel = () => {
+    this.setState({ list: { ...this.props.list }, modalType: null });
+  };
+
+  saveSettings = () => {
+    const { list } = this.state;
+    const body = {
+      _etag: list._etag,
+      limit:
+        list.limit != null && list.limit !== ""
+          ? parseInt(list.limit, 10)
+          : null,
+      description: list.description || "",
+    };
+
+    this.props.publisher
+      .manageList(body, list.id)
+      .then((res) => {
+        this.modalClose();
+        this.props.onListUpdate({ ...res });
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  };
+
   handleInputChange = (e) => {
     const { name, value } = e.target;
     const list = { ...this.state.list, [name]: value };
@@ -134,6 +164,52 @@ class ListCard extends React.Component {
           <div className="modal__footer">
             <Button text="Cancel" onClick={this.modalClose} />
             <Button text="Ok" type="primary" onClick={this.deleteList} />
+          </div>
+        </React.Fragment>
+      );
+    }
+
+    if (modalType === "settings") {
+      modalContent = (
+        <React.Fragment>
+          <div className="modal__header">
+            <a className="close" onClick={this.settingsCancel}>
+              <i className="icon-close-small" />
+            </a>
+            <h3>Settings</h3>
+          </div>
+          <div className="modal__body">
+            <form name="settingsForm">
+              <fieldset>
+                <div className="field">
+                  <label htmlFor="listLimit">number of articles limit</label>
+                  <input
+                    id="listLimit"
+                    type="number"
+                    className="line-input"
+                    name="limit"
+                    min="0"
+                    value={list.limit != null ? list.limit : ""}
+                    onChange={this.handleInputChange}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="listDescription">Description</label>
+                  <input
+                    id="listDescription"
+                    type="text"
+                    className="line-input"
+                    name="description"
+                    value={list.description || ""}
+                    onChange={this.handleInputChange}
+                  />
+                </div>
+              </fieldset>
+            </form>
+          </div>
+          <div className="modal__footer">
+            <Button text="Cancel" onClick={this.settingsCancel} />
+            <Button text="Save" type="primary" onClick={this.saveSettings} />
           </div>
         </React.Fragment>
       );
@@ -197,6 +273,12 @@ class ListCard extends React.Component {
                       </button>
                     }
                   >
+                    <li>
+                      <button onClick={this.openSettings} title="Settings">
+                        <i className="icon-settings" />
+                        Settings
+                      </button>
+                    </li>
                     <li>
                       <button onClick={this.deleteConfirm} title="Remove list">
                         <i className="icon-trash" />

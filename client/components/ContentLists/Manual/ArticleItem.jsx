@@ -7,11 +7,11 @@ import helpers from "../../../services/helpers.js";
 
 const isToday = (value) => moment(value).isSame(moment(), "day");
 
-// Today -> just time ("14:04"); otherwise date + time ("2024-11-20 14:04").
+// Today -> just time ("14:04"); otherwise time + date ("14:04, 20.11.2024").
 const formatWhen = (value) =>
   isToday(value)
     ? moment(value).format("HH:mm")
-    : moment(value).format("YYYY-MM-DD HH:mm");
+    : moment(value).format("HH:mm, DD.MM.YYYY");
 
 const isPublished = (status) =>
   status === "published" || status === "corrected";

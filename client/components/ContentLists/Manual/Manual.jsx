@@ -299,11 +299,14 @@ class Manual extends React.Component {
       // The `published` index keeps every published version of a story (the
       // original plus each correction). Without this filter the search returns
       // them all, and since every version shares the same guid the UI shows the
-      // stale original. last_published_version is true only on the current
-      // version, so this yields one up-to-date entry per story (matching how
-      // Superdesk's own published search behaves).
+      // stale original. Superseded versions have last_published_version set to
+      // the string "false"; excluding those (rather than requiring true, which
+      // also drops items where the field is absent) yields one up-to-date entry
+      // per story — exactly Superdesk's own "only last published" filter.
       if (state === 'published') {
-        filterClauses.push({ term: { last_published_version: true } });
+        filterClauses.push({
+          not: { term: { last_published_version: 'false' } },
+        });
       }
 
       const query = {

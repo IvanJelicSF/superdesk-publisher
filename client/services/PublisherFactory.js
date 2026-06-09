@@ -523,6 +523,26 @@ export function PublisherFactory(pubapi) {
 
     /**
      * @ngdoc method
+     * @name publisher#searchPublishedArticles
+     * @param {Object} query - ES query with filter, from/size, sort
+     * @returns {Promise}
+     * @description Query the dedicated /published endpoint. Unlike the /search
+     * repo=published view, this is the published collection, so corrections
+     * (state "corrected") are included; callers should filter to the latest
+     * version via last_published_version. Response shape matches /search
+     * (_items / _meta).
+     */
+    searchPublishedArticles(query) {
+      const source = JSON.stringify(query);
+      return pubapi.superdeskApiRequest({
+        method: 'GET',
+        path: '/published',
+        params: { source },
+      });
+    }
+
+    /**
+     * @ngdoc method
      * @name publisher#exportFromSuperdesk
      * @param {Array} itemIds - array of article GUIDs
      * @returns {Promise}

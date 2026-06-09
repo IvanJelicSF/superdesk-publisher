@@ -291,49 +291,70 @@ class Manual extends React.Component {
         ? this.state.articlesFilters.term
         : null;
 
-      const filterClauses = [
-        { term: { state } },
-        { term: { type: 'text' } },
-      ];
+      const isPublished = state === 'published';
+      let query;
 
-      // The `published` index keeps every published version of a story (the
-      // original plus each correction). Without this filter the search returns
-      // them all, and since every version shares the same guid the UI shows the
-      // stale original. Superseded versions have last_published_version set to
-      // the string "false"; excluding those (rather than requiring true, which
-      // also drops items where the field is absent) yields one up-to-date entry
-      // per story — exactly Superdesk's own "only last published" filter.
-      if (state === 'published') {
-        filterClauses.push({
-          not: { term: { last_published_version: 'false' } },
-        });
-      }
+      if (isPublished) {
+        // The /published collection keeps every published version of a story
+        // (the original plus each correction), and a correction's state becomes
+        // "corrected" rather than "published" — so we can't filter on
+        // state === 'published' (that only matches the stale original). Instead
+        // drop superseded versions via last_published_version and exclude
+        // killed/recalled, yielding one current entry per story (matching how
+        // Superdesk's own published view behaves).
+        //
+        // Use a plain bool query (NOT the deprecated `filtered`, removed in ES5)
+        // since eve_elastic passes source.query straight through to ES.
+        const must = [{ term: { type: 'text' } }];
 
-      const query = {
-        query: {
-          filtered: {
-            filter: { and: filterClauses },
+        if (term) {
+          must.push({
+            query_string: { query: term, lenient: true, default_operator: 'AND' },
+          });
+        }
+
+        query = {
+          query: {
+            bool: {
+              must,
+              must_not: [
+                { term: { last_published_version: false } },
+                { terms: { state: ['killed', 'recalled'] } },
+              ],
+            },
           },
-        },
-        from,
-        size,
-        sort: [{ versioncreated: 'desc' }],
-      };
-
-      if (term) {
-        query.query.filtered.query = {
-          query_string: { query: term, lenient: true, default_operator: 'AND' },
+          from,
+          size,
+          sort: [{ versioncreated: 'desc' }],
         };
+      } else {
+        query = {
+          query: {
+            filtered: {
+              filter: {
+                and: [{ term: { state } }, { term: { type: 'text' } }],
+              },
+            },
+          },
+          from,
+          size,
+          sort: [{ versioncreated: 'desc' }],
+        };
+
+        if (term) {
+          query.query.filtered.query = {
+            query_string: { query: term, lenient: true, default_operator: 'AND' },
+          };
+        }
       }
 
-      // Published items live in the `published` repo; everything else
-      // (scheduled, in_progress, draft, ...) lives in `archive`.
-      const extraParams = state === 'published'
-        ? { repo: 'published' }
-        : { repo: 'archive' };
+      // Published items come from the dedicated /published endpoint; everything
+      // else (scheduled, in_progress, draft, ...) lives in the archive search.
+      const request = isPublished
+        ? this.props.publisher.searchPublishedArticles(query)
+        : this.props.publisher.searchSuperdeskArticles(query, { repo: 'archive' });
 
-      this.props.publisher
-        .searchSuperdeskArticles(query, extraParams)
+      request
         .then((response) => {
           const labelMap = {
             published: 'Published',

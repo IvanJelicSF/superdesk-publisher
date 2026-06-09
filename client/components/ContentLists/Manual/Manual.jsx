@@ -114,10 +114,30 @@ class Manual extends React.Component {
     this.refreshArticlesDebounced.cancel();
   }
 
-  handleNotification = () => {
-    // Any watched change can affect what's shown in either pane. The
-    // individual refreshers apply their own guards (unsaved edits / drag), so
-    // just trigger both — they're debounced and reload in place.
+  handleNotification = (e) => {
+    const detail = (e && e.detail) || {};
+    const event = detail.event;
+
+    // Another user changed this list's items (add/move/remove). Only refresh
+    // when it's the list currently open here; other lists are irrelevant.
+    if (event === "content_list:items_updated") {
+      const extra = detail.extra || {};
+      if (String(extra.list_id) === String(this.props.list.id)) {
+        this.refreshListDebounced();
+      }
+      return;
+    }
+
+    // List collection/metadata events (created/updated/deleted) don't change
+    // the open list's items — the parent ContentLists handles those.
+    if (typeof event === "string" && event.indexOf("content_list:") === 0) {
+      return;
+    }
+
+    // Article content changed somewhere (publish/correction/spike/move). Either
+    // pane can be affected. The individual refreshers apply their own guards
+    // (unsaved edits / drag), so just trigger both — they're debounced and
+    // reload in place.
     this.refreshListDebounced();
     this.refreshArticlesDebounced();
   };

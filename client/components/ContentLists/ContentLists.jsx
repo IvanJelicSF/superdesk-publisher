@@ -7,6 +7,12 @@ import Listing from "./Listing";
 import ManualList from "./Manual/Manual";
 import PreviewPane from "./PreviewPane";
 
+// Window event the Angular controller bridges Superdesk websocket
+// notifications onto (see WebPublisherContentListsController). Carries the
+// content_list:* events fired when a list is created/renamed/deleted by
+// anyone, so the listing grid can live-update.
+const SD_NOTIFICATION_EVENT = "publisher:content-notification";
+
 class ContentLists extends React.Component {
   constructor(props) {
     super(props);
@@ -30,11 +36,54 @@ class ContentLists extends React.Component {
     // pubapi.setToken() here would 401 and trigger session.expire(), logging
     // the user out, whenever Publisher isn't available.
     this._getLists();
+    window.addEventListener(SD_NOTIFICATION_EVENT, this.handleNotification);
   }
 
   componentWillUnmount() {
     this._isMounted = false;
+    window.removeEventListener(SD_NOTIFICATION_EVENT, this.handleNotification);
+    this.refreshListsDebounced.cancel();
   }
+
+  handleNotification = (e) => {
+    const event = e && e.detail && e.detail.event;
+
+    // A list was created/renamed/deleted by someone (possibly another tab).
+    // Refresh the collection so the listing grid and the list dropdown stay
+    // current. Item-level changes (content_list:items_updated) are handled by
+    // the open ManualList, not here.
+    if (
+      event === "content_list:created" ||
+      event === "content_list:updated" ||
+      event === "content_list:deleted"
+    ) {
+      this.refreshListsDebounced();
+    }
+  };
+
+  // Re-query the lists collection in place. Deliberately does NOT replace
+  // `selectedList`: that object is the open editor's working copy (it may hold
+  // unsaved item edits), and swapping its identity would reset ManualList and
+  // clobber those edits. We only drop it if the open list was deleted.
+  refreshLists = () => {
+    if (!this._isMounted) return;
+
+    this.props.publisher.queryLists().then((lists) => {
+      lists = lists.filter((l) => l.type === "manual");
+      lists = _.orderBy(lists, "name", "asc");
+
+      let selectedList = this.state.selectedList;
+      if (selectedList && !lists.find((l) => l.id === selectedList.id)) {
+        selectedList = null;
+      }
+
+      if (this._isMounted) this.setState({ lists, selectedList });
+    });
+  };
+
+  // Debounced so a burst of notifications (and Superdesk's slight delay between
+  // pushing an event and the data being queryable) collapses into one query.
+  refreshListsDebounced = _.debounce(() => this.refreshLists(), 1000);
 
   listEdit = (list) =>
     this.setState({

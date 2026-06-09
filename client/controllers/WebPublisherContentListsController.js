@@ -51,6 +51,14 @@ export function WebPublisherContentListsController(
         "item:spike",
         "item:unspike",
         "item:move",
+        // List-structure changes pushed by the content_lists backend service:
+        // another user adding/moving/removing items, renaming a list, changing
+        // its limit, or creating/deleting a list. Bridged here so the React UI
+        // can live-refresh the open list and the listing grid.
+        "content_list:items_updated",
+        "content_list:created",
+        "content_list:updated",
+        "content_list:deleted",
       ];
 
       SD_NOTIFICATION_EVENTS.forEach((evt) => {

@@ -38,6 +38,31 @@ export function WebPublisherContentListsController(
       api.notify = notify;
       this.api = api;
 
+      // Superdesk pushes article changes over its websocket and re-broadcasts
+      // them on the Angular root scope. The content-lists UI is React and has
+      // no scope access, so bridge the relevant events to a window event it
+      // listens for, to live-refresh lists when a visible article changes.
+      // ($scope.$on receives $rootScope.$broadcast and auto-deregisters when
+      // the route's scope is destroyed.)
+      const SD_NOTIFICATION_EVENTS = [
+        "content:update",
+        "item:publish",
+        "item:correction",
+        "item:spike",
+        "item:unspike",
+        "item:move",
+      ];
+
+      SD_NOTIFICATION_EVENTS.forEach((evt) => {
+        $scope.$on(evt, (e, extra) => {
+          window.dispatchEvent(
+            new CustomEvent("publisher:content-notification", {
+              detail: { event: evt, extra },
+            })
+          );
+        });
+      });
+
       let isLanguagesEnabled = false;
 
       let vocabulariesList = [];

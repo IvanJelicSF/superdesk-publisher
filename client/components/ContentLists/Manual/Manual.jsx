@@ -11,19 +11,11 @@ import ArticleItem from "./ArticleItem";
 import Loading from "../../UI/Loading/Loading";
 import LanguageSelect from "../../UI/LanguageSelect";
 import SourceSelect from "../../UI/SourceSelect";
-import SuperdeskWebsocket from "../../../services/SuperdeskWebsocket";
 
-// Superdesk notification events that can change an article already shown in a
-// content list (publish, spike, edit, move, ...). When one of these touches a
-// visible list item we refresh the list so the card reflects the new content.
-const WATCHED_WS_EVENTS = [
-  "content:update",
-  "item:publish",
-  "item:correction",
-  "item:spike",
-  "item:unspike",
-  "item:move",
-];
+// Window event the Angular controller bridges Superdesk websocket
+// notifications onto (see WebPublisherContentListsController). Fired whenever
+// an article is published/edited/spiked/etc., so we can live-refresh the lists.
+const SD_NOTIFICATION_EVENT = "publisher:content-notification";
 
 // a little function to help us with reordering the result
 const reorder = (list, startIndex, endIndex) => {
@@ -59,8 +51,6 @@ class Manual extends React.Component {
     this._isDragging = false;
     this.listScroll = React.createRef();
     this.articlesScroll = React.createRef();
-    this.websocket = null;
-    this.wsUnsubscribers = [];
 
     this.state = {
       list: {
@@ -113,67 +103,22 @@ class Manual extends React.Component {
     this._isMounted = true;
     this._loadData();
     this.attachScrollEvents();
-    this.connectWebsocket();
+    window.addEventListener(SD_NOTIFICATION_EVENT, this.handleNotification);
   }
 
   componentWillUnmount() {
     this._isMounted = false;
     this.detachScrollEvents();
-    this.disconnectWebsocket();
+    window.removeEventListener(SD_NOTIFICATION_EVENT, this.handleNotification);
     this.refreshListDebounced.cancel();
     this.refreshArticlesDebounced.cancel();
   }
 
-  connectWebsocket = () => {
-    this.websocket = new SuperdeskWebsocket(this.props.config);
-    this.websocket.open();
-    this.wsUnsubscribers = WATCHED_WS_EVENTS.map((event) =>
-      this.websocket.on(event, this.handleWsEvent)
-    );
-  };
-
-  disconnectWebsocket = () => {
-    this.wsUnsubscribers.forEach((unsubscribe) => unsubscribe());
-    this.wsUnsubscribers = [];
-    if (this.websocket) {
-      this.websocket.close();
-      this.websocket = null;
-    }
-  };
-
-  /**
-   * Collect the Superdesk item ids referenced by a notification message.
-   * `content:update` carries `extra.items` ({id: 1, ...}); the per-item events
-   * (publish/spike/move/...) carry a single `extra.item`.
-   */
-  getEventItemIds = (msg) => {
-    const ids = new Set();
-    const extra = (msg && msg.extra) || {};
-
-    if (extra.items && typeof extra.items === "object") {
-      Object.keys(extra.items).forEach((id) => ids.add(id));
-    }
-    if (extra.item) ids.add(extra.item);
-
-    return ids;
-  };
-
-  getListItemId = (item) => (item.content ? item.content.id : item.id);
-
-  handleWsEvent = (msg) => {
-    const eventIds = this.getEventItemIds(msg);
-    const listIds = new Set(this.state.list.items.map(this.getListItemId));
-
-    // List pane: only refresh when the change touches an article currently
-    // shown in the list. If we can't read ids off the message, refresh anyway
-    // as a fallback.
-    const touchesList =
-      eventIds.size === 0 || [...eventIds].some((id) => listIds.has(id));
-
-    if (touchesList) this.refreshListDebounced();
-
-    // Available-articles pane: a publish/spike/move can add or remove a match
-    // for the current source, so refresh regardless of which item changed.
+  handleNotification = () => {
+    // Any watched change can affect what's shown in either pane. The
+    // individual refreshers apply their own guards (unsaved edits / drag), so
+    // just trigger both — they're debounced and reload in place.
+    this.refreshListDebounced();
     this.refreshArticlesDebounced();
   };
 

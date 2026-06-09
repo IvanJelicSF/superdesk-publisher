@@ -158,31 +158,21 @@ class Webhooks extends React.Component {
 
     return (
       <React.Fragment>
-        <div className="subnav">
-          <button
-            className="icn-btn"
-            title="Back to content lists"
-            onClick={this.props.onClose}
-          >
-            <i className="icon-arrow-left" />
-          </button>
-          <h3 className="subnav__page-title">Settings</h3>
-        </div>
-
-        <ul className="nav-tabs">
-          <li className="nav-tabs__tab nav-tabs__tab--active">
-            <button className="nav-tabs__link">Webhooks</button>
-          </li>
-        </ul>
-
         <div
-          className={classNames(
-            "sd-page-content__content-block sd-page-content__content-block--main relative",
-            { "open-preview": paneOpen }
-          )}
+          className={classNames("sd-page-content__content-block", {
+            "open-preview": paneOpen,
+          })}
         >
-          <div className="sd-page__header">
-            <span className="sd-page__element-grow" />
+          <div className="subnav">
+            <button
+              className="icn-btn"
+              title="Back to content lists"
+              onClick={this.props.onClose}
+            >
+              <i className="icon-arrow-left" />
+            </button>
+            <h3 className="subnav__page-title">Settings</h3>
+            <span className="subnav__stretch-bar" />
             <Button
               text="Add new"
               type="primary"
@@ -191,8 +181,14 @@ class Webhooks extends React.Component {
             />
           </div>
 
-          <div className="sd-column-box--3">
-            <div className="sd-column-box__main-column">
+          <ul className="nav-tabs">
+            <li className="nav-tabs__tab nav-tabs__tab--active">
+              <button className="nav-tabs__link">Webhooks</button>
+            </li>
+          </ul>
+
+          <div className="sd-column-box--3 content-nav-closed">
+            <div className="sd-column-box__main-column relative">
               {loading && <div className="sd-loader" />}
 
               {!loading && !webhooks.length && (
@@ -208,7 +204,7 @@ class Webhooks extends React.Component {
               )}
 
               {!loading && !!webhooks.length && (
-                <div className="sd-list-item-group">
+                <div className="sd-list-item-group sd-shadow--z2">
                   {webhooks.map((webhook) => (
                     <WebhookItem
                       key={webhook.id}
@@ -225,9 +221,12 @@ class Webhooks extends React.Component {
               )}
             </div>
 
-            <div className="sd-preview-panel">
-              <div className="side-panel side-panel--shadow-right">
-                {paneOpen && form && (
+            {/* Mounted only while open — matching the Content Lists preview
+                pane. A permanently-rendered, off-canvas sd-preview-panel adds
+                its width to the page and overflows the viewport on the right. */}
+            {paneOpen && form && (
+              <div className="sd-preview-panel">
+                <div className="side-panel side-panel--shadow-right">
                   <WebhookEditPanel
                     value={form}
                     lists={lists}
@@ -236,9 +235,9 @@ class Webhooks extends React.Component {
                     onCancel={this.closePane}
                     saving={this.state.saving}
                   />
-                )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 

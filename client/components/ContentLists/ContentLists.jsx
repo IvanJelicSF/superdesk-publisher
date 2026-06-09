@@ -191,13 +191,11 @@ class ContentLists extends React.Component {
   render() {
     if (this.state.settingsOpen) {
       return (
-        <div className="sd-page-content__content-block">
-          <Webhooks
-            publisher={this.props.publisher}
-            api={this.props.api}
-            onClose={() => this.setState({ settingsOpen: false })}
-          />
-        </div>
+        <Webhooks
+          publisher={this.props.publisher}
+          api={this.props.api}
+          onClose={() => this.setState({ settingsOpen: false })}
+        />
       );
     }
 

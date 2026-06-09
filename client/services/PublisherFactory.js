@@ -412,6 +412,90 @@ export function PublisherFactory(pubapi) {
     }
 
     /**
+     * @description Maps a content list webhook from the Superdesk internal
+     * API to the shape the Publisher UI expects (adds the `id` alias).
+     */
+    _mapSdContentListWebhook(sdWebhook) {
+      if (!sdWebhook) return sdWebhook;
+      return {
+        ...sdWebhook,
+        id: sdWebhook._id,
+        excluded_lists: (sdWebhook.excluded_lists || []).map((id) =>
+          String(id)
+        ),
+      };
+    }
+
+    /**
+     * @ngdoc method
+     * @name publisher#queryContentListWebhooks
+     * @returns {Promise}
+     * @description List all content list webhooks via Superdesk internal API
+     */
+    queryContentListWebhooks() {
+      return pubapi
+        .superdeskApiRequest({
+          method: "GET",
+          path: "/content_list_webhooks",
+          params: { max_results: 200 },
+        })
+        .then((response) =>
+          (response._items || []).map((w) => this._mapSdContentListWebhook(w))
+        );
+    }
+
+    /**
+     * @ngdoc method
+     * @name publisher#manageContentListWebhook
+     * @param {Object} webhook - { url, name, enabled, excluded_lists, _etag }
+     * @param {String} id - id of the webhook to update (omit to create)
+     * @returns {Promise}
+     * @description Create or update a content list webhook via the Superdesk
+     * internal API. For updates, webhook._etag is sent as the If-Match header.
+     */
+    manageContentListWebhook(webhook, id) {
+      const isUpdate = !!id;
+      const body = {
+        url: webhook.url,
+        name: webhook.name || null,
+        enabled: webhook.enabled !== false,
+        excluded_lists: webhook.excluded_lists || [],
+      };
+
+      const requestConfig = {
+        method: isUpdate ? "PATCH" : "POST",
+        path: isUpdate
+          ? "/content_list_webhooks/" + id
+          : "/content_list_webhooks",
+        data: body,
+      };
+
+      if (isUpdate && webhook._etag) {
+        requestConfig.headers = { "If-Match": webhook._etag };
+      }
+
+      return pubapi
+        .superdeskApiRequest(requestConfig)
+        .then((res) => this._mapSdContentListWebhook(res));
+    }
+
+    /**
+     * @ngdoc method
+     * @name publisher#removeContentListWebhook
+     * @param {String} id - id of the webhook to delete
+     * @param {String} etag - current _etag of the webhook (required by SD API)
+     * @returns {Promise}
+     * @description Delete a content list webhook via Superdesk internal API
+     */
+    removeContentListWebhook(id, etag) {
+      return pubapi.superdeskApiRequest({
+        method: "DELETE",
+        path: "/content_list_webhooks/" + id,
+        headers: etag ? { "If-Match": etag } : undefined,
+      });
+    }
+
+    /**
      * @ngdoc method
      * @name publisher#queryListArticlesWithDetails
      * @param {String} id - id of content list

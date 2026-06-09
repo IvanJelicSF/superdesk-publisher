@@ -6,6 +6,7 @@ import _ from "lodash";
 import Listing from "./Listing";
 import ManualList from "./Manual/Manual";
 import PreviewPane from "./PreviewPane";
+import Webhooks from "./Webhooks/Webhooks";
 
 // Window event the Angular controller bridges Superdesk websocket
 // notifications onto (see WebPublisherContentListsController). Carries the
@@ -26,6 +27,7 @@ class ContentLists extends React.Component {
       filtersOpen: false,
       previewOpen: false,
       previewItem: null,
+      settingsOpen: false,
     };
   }
 
@@ -187,6 +189,18 @@ class ContentLists extends React.Component {
   };
 
   render() {
+    if (this.state.settingsOpen) {
+      return (
+        <div className="sd-page-content__content-block">
+          <Webhooks
+            publisher={this.props.publisher}
+            api={this.props.api}
+            onClose={() => this.setState({ settingsOpen: false })}
+          />
+        </div>
+      );
+    }
+
     return (
       <React.Fragment>
         {this.state.loading && <div className="sd-loader" />}
@@ -200,6 +214,14 @@ class ContentLists extends React.Component {
         >
           <div className="subnav">
             <h3 className="subnav__page-title">Content Lists</h3>
+            <span className="subnav__stretch-bar" />
+            <button
+              className="icn-btn"
+              title="Settings"
+              onClick={() => this.setState({ settingsOpen: true })}
+            >
+              <i className="icon-settings" />
+            </button>
           </div>
           <div className="sd-column-box--3 content-nav-closed">
             {!this.state.selectedList && (

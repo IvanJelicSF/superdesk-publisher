@@ -11,6 +11,19 @@ import ArticleItem from "./ArticleItem";
 import Loading from "../../UI/Loading/Loading";
 import LanguageSelect from "../../UI/LanguageSelect";
 import SourceSelect from "../../UI/SourceSelect";
+import SuperdeskWebsocket from "../../../services/SuperdeskWebsocket";
+
+// Superdesk notification events that can change an article already shown in a
+// content list (publish, spike, edit, move, ...). When one of these touches a
+// visible list item we refresh the list so the card reflects the new content.
+const WATCHED_WS_EVENTS = [
+  "content:update",
+  "item:publish",
+  "item:correction",
+  "item:spike",
+  "item:unspike",
+  "item:move",
+];
 
 // a little function to help us with reordering the result
 const reorder = (list, startIndex, endIndex) => {
@@ -43,8 +56,11 @@ class Manual extends React.Component {
     super(props);
 
     this._isMounted = false;
+    this._isDragging = false;
     this.listScroll = React.createRef();
     this.articlesScroll = React.createRef();
+    this.websocket = null;
+    this.wsUnsubscribers = [];
 
     this.state = {
       list: {
@@ -97,12 +113,99 @@ class Manual extends React.Component {
     this._isMounted = true;
     this._loadData();
     this.attachScrollEvents();
+    this.connectWebsocket();
   }
 
   componentWillUnmount() {
     this._isMounted = false;
     this.detachScrollEvents();
+    this.disconnectWebsocket();
+    this.refreshListDebounced.cancel();
+    this.refreshArticlesDebounced.cancel();
   }
+
+  connectWebsocket = () => {
+    this.websocket = new SuperdeskWebsocket(this.props.config);
+    this.websocket.open();
+    this.wsUnsubscribers = WATCHED_WS_EVENTS.map((event) =>
+      this.websocket.on(event, this.handleWsEvent)
+    );
+  };
+
+  disconnectWebsocket = () => {
+    this.wsUnsubscribers.forEach((unsubscribe) => unsubscribe());
+    this.wsUnsubscribers = [];
+    if (this.websocket) {
+      this.websocket.close();
+      this.websocket = null;
+    }
+  };
+
+  /**
+   * Collect the Superdesk item ids referenced by a notification message.
+   * `content:update` carries `extra.items` ({id: 1, ...}); the per-item events
+   * (publish/spike/move/...) carry a single `extra.item`.
+   */
+  getEventItemIds = (msg) => {
+    const ids = new Set();
+    const extra = (msg && msg.extra) || {};
+
+    if (extra.items && typeof extra.items === "object") {
+      Object.keys(extra.items).forEach((id) => ids.add(id));
+    }
+    if (extra.item) ids.add(extra.item);
+
+    return ids;
+  };
+
+  getListItemId = (item) => (item.content ? item.content.id : item.id);
+
+  handleWsEvent = (msg) => {
+    const eventIds = this.getEventItemIds(msg);
+    const listIds = new Set(this.state.list.items.map(this.getListItemId));
+
+    // List pane: only refresh when the change touches an article currently
+    // shown in the list. If we can't read ids off the message, refresh anyway
+    // as a fallback.
+    const touchesList =
+      eventIds.size === 0 || [...eventIds].some((id) => listIds.has(id));
+
+    if (touchesList) this.refreshListDebounced();
+
+    // Available-articles pane: a publish/spike/move can add or remove a match
+    // for the current source, so refresh regardless of which item changed.
+    this.refreshArticlesDebounced();
+  };
+
+  refreshList = () => {
+    // Skip while the user has unsaved edits or is mid-drag — a reload would
+    // clobber pending reordering/pin/remove changes that aren't saved yet.
+    if (!this._isMounted || this._isDragging || this.state.changesRecord.length)
+      return;
+
+    // Reload every currently shown item in one page so nothing visibly drops.
+    const limit = Math.max(25, this.state.list.items.length);
+    this._queryListArticles(true, limit);
+  };
+
+  // Debounced so a burst of events (and Superdesk's own slight delay between
+  // pushing an event and the data being queryable) collapses into one reload.
+  refreshListDebounced = _.debounce(() => this.refreshList(), 1000);
+
+  refreshArticles = () => {
+    // Don't yank the picker out from under an in-progress drag.
+    if (!this._isMounted || this._isDragging) return;
+
+    // Reload every currently shown article in one request so the pane updates
+    // in place (matching results keep their DOM node, so scroll is preserved).
+    this._querySuperdeskArticles(
+      this.state.source.id,
+      true,
+      this.state.articles.items.length
+    );
+  };
+
+  refreshArticlesDebounced = _.debounce(() => this.refreshArticles(), 1000);
 
   scrollListener = (e, list) => {
     if (e.type !== "scroll") return;
@@ -211,7 +314,15 @@ class Manual extends React.Component {
     });
   };
 
-  _querySuperdeskArticles = (state = this.state.source.id, reset = false) => {
+  // sizeOverride (used by the live refresh) reloads the first N already-loaded
+  // items in a single request instead of one 20-item page, so an in-place
+  // refresh keeps every visible article. It is rounded up to a multiple of the
+  // 20-item page size so infinite scroll continues from a clean page boundary.
+  _querySuperdeskArticles = (
+    state = this.state.source.id,
+    reset = false,
+    sizeOverride = null
+  ) => {
     let articles = this.state.articles;
     if (articles.loading || (articles.page === articles.totalPages && !reset))
       return;
@@ -227,6 +338,10 @@ class Manual extends React.Component {
 
     articles.loading = true;
     this.setState({ articles }, () => {
+      const size = sizeOverride
+        ? Math.max(20, Math.ceil(sizeOverride / 20) * 20)
+        : 20;
+      const from = sizeOverride ? 0 : this.state.articles.page * 20;
       const term = this.state.articlesFilters && this.state.articlesFilters.term
         ? this.state.articlesFilters.term
         : null;
@@ -242,8 +357,8 @@ class Manual extends React.Component {
             filter: { and: filterClauses },
           },
         },
-        from: this.state.articles.page * 20,
-        size: 20,
+        from,
+        size,
         sort: [{ versioncreated: 'desc' }],
       };
 
@@ -311,10 +426,18 @@ class Manual extends React.Component {
           });
 
           const total = (response._meta && response._meta.total) || 0;
+          const items = sizeOverride
+            ? articleItemsMapped
+            : [...this.state.articles.items, ...articleItemsMapped];
+          // On a sizeOverride reload we fetched several pages at once, so derive
+          // the page cursor from how many items we actually have.
+          const page = sizeOverride
+            ? Math.ceil(articleItemsMapped.length / 20)
+            : this.state.articles.page + 1;
           const newArticles = {
-            page: this.state.articles.page + 1,
+            page,
             totalPages: Math.ceil(total / 20) || 1,
-            items: [...this.state.articles.items, ...articleItemsMapped],
+            items,
             loading: false,
           };
 
@@ -458,7 +581,12 @@ class Manual extends React.Component {
     });
   }
 
+  onDragStart = () => {
+    this._isDragging = true;
+  };
+
   onDragEnd = (result) => {
+    this._isDragging = false;
     const { source, destination, draggableId } = result;
 
     // dropped outside the list
@@ -587,7 +715,10 @@ class Manual extends React.Component {
 
     return (
       <div className="flex-grid flex-grid--grow flex-grid--small-2">
-        <DragDropContext onDragEnd={this.onDragEnd}>
+        <DragDropContext
+          onDragStart={this.onDragStart}
+          onDragEnd={this.onDragEnd}
+        >
           <div className="flex-grid__item flex-grid__item--d-flex flex-grid__item--column panel-border-right">
             <div className="subnav subnav--lower-z-index subnav--dark-blue-grey" data-theme="dark-ui">
               <button
@@ -840,6 +971,7 @@ Manual.propTypes = {
   isLanguagesEnabled: PropTypes.bool.isRequired,
   languages: PropTypes.array.isRequired,
   site: PropTypes.object.isRequired,
+  config: PropTypes.object,
 };
 
 export default Manual;
